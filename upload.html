@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Upload Images</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f9f9f9;
+      padding: 40px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 { text-align: center; color: #333; }
+    #uploadBox {
+      background: #fff; border-radius: 12px; padding: 30px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center;
+    }
+    #fileInput { display: block; margin: 20px auto; font-size: 1rem; }
+    #uploadBtn {
+      background-color: #0078d7; color: #fff; border: none;
+      padding: 10px 25px; border-radius: 8px; cursor: pointer; font-size: 1rem;
+    }
+    #uploadBtn:hover { background-color: #005fa3; }
+    #log {
+      margin-top: 25px; text-align: left; background: #fff; padding: 15px;
+      border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      max-height: 300px; overflow-y: auto; font-family: monospace; font-size: .9em;
+    }
+    .success { color: green; }
+    .error { color: red; }
+    .pending { color: #555; }
+  </style>
+</head>
+<body>
+  <nav>
+    <ul>
+    <li><a href="index.html" style="color: black;">search</a></li>
+  </ul>
+  </nav>
+  <h1>📤 Upload Images to Vector Database</h1>
+
+  <div id="uploadBox">
+    <input type="file" id="fileInput" accept="image/*" multiple />
+    <button id="uploadBtn" type="button">Upload & Embed</button>
+    <div id="log"></div>
+  </div>
+
+  <script>
+  const API_URL = "http://localhost:5000/ingest-image";
+  const fileInput = document.getElementById("fileInput");
+  const uploadBtn = document.getElementById("uploadBtn");
+  const logDiv = document.getElementById("log");
+
+  function makeLogLine(fileName, text, className = "pending") {
+    const line = document.createElement("div");
+    line.className = className;
+    line.innerHTML = `${text}`;
+    line.dataset.file = fileName;
+    logDiv.appendChild(line);
+    return line;
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  async function uploadOne(file, lineEl, { timeoutMs = 60000, maxRetries = 3 }) {
+    const formData = new FormData();
+    formData.append("image", file, file.name);
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          body: formData,
+          signal: controller.signal,
+        });
+
+        const text = await res.text();
+        let data = null; try { data = JSON.parse(text); } catch {}
+
+        if (!res.ok) {
+          const transient = [408, 429, 500, 502, 503, 504].includes(res.status);
+          if (transient && attempt < maxRetries) {
+            const delay = 500 * Math.pow(2, attempt);
+            lineEl.className = "pending";
+            lineEl.textContent = `↻ ${file.name}: transient ${res.status}. Retrying in ${delay}ms...`;
+            await sleep(delay);
+            continue;
+          }
+          lineEl.className = "error";
+          lineEl.textContent = `❌ ${file.name}: ${res.status} ${res.statusText} — ${text.slice(0,200)}`;
+          return;
+        }
+
+        if (data && data.error) {
+          lineEl.className = "error";
+          lineEl.textContent = `❌ ${file.name}: ${data.error}`;
+        } else if (data) {
+          lineEl.className = "success";
+          lineEl.innerHTML = `✅ ${file.name} uploaded!<br>ID: <code>${data.id ?? "n/a"}</code><br>Saved path: <code>${data.path ?? "n/a"}</code>`;
+        } else {
+          lineEl.className = "success";
+          lineEl.textContent = `✅ ${file.name} uploaded (no JSON body).`;
+        }
+        return; 
+      } catch (err) {
+        if (attempt < maxRetries) {
+          const delay = 500 * Math.pow(2, attempt);
+          lineEl.className = "pending";
+          lineEl.textContent = `↻ ${file.name}: ${err.name || "Error"} — retrying in ${delay}ms...`;
+          await sleep(delay);
+          continue;
+        }
+        lineEl.className = "error";
+        lineEl.textContent = `❌ ${file.name}: ${err.message}`;
+        return;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  }
+
+  async function uploadMany(files, concurrency = 1) {
+    const queue = Array.from(files).map(file => {
+      const line = makeLogLine(file.name, `Uploading ${file.name}...`);
+      return { file, line };
+    });
+
+    let index = 0;
+    const workers = new Array(Math.min(concurrency, queue.length)).fill(0).map(async () => {
+      while (true) {
+        const i = index++;
+        if (i >= queue.length) break;
+        const current = queue[i];
+        await uploadOne(current.file, current.line, { timeoutMs: 120000, maxRetries: 3 });
+      }
+    });
+
+    await Promise.all(workers);
+  }
+
+  uploadBtn.addEventListener("click", async (event) => {
+    event.preventDefault();
+    const { files } = fileInput;
+    if (!files || files.length === 0) {
+      alert("Please select one or more images to upload.");
+      return;
+    }
+    logDiv.innerHTML = "";
+    uploadBtn.disabled = true;
+    uploadBtn.textContent = "Uploading...";
+    try {
+      await uploadMany(files, 1);
+    } finally {
+      uploadBtn.disabled = false;
+      uploadBtn.textContent = "Upload & Embed";
+    }
+  });
+</script>
+
+</body>
+</html>

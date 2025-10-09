@@ -1,0 +1,6 @@
+.venv/
+.data/*
+.images_to_convert/*
+*.jpg
+*.png
+*.pyc
