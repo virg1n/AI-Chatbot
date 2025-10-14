@@ -131,6 +131,7 @@ function injectElevenLabsWidget() {
   widget.addEventListener("elevenlabs-convai:call", (event) => {
     event.detail.config.clientTools = {
       ShowImage: async ({ topic }) => {
+        console.log(topic)
         const prompt = (topic && String(topic).trim()) || DEFAULT_TOPIC;
 
         // Optional: clear results each invocation

@@ -40,9 +40,10 @@ def search():
     Body: { "prompt": "a red car on the street", "top_k": 5 }
     Returns: { "results": [ { "id": ..., "path": ..., "score": ... }, ... ] }
     """
-    print(1)
+    
     data = request.get_json(force=True, silent=True) or {}
     prompt = data.get("prompt", "").strip()
+    print(prompt)
     top_k = int(data.get("top_k", 5))
     if not prompt:
         return jsonify({"error": "prompt is required"}), 400
@@ -53,9 +54,16 @@ def search():
         q = embed_text(prompt)
         results = index.search(q, top_k=top_k)
         out = []
+        maximum_score = {"id": 0, "path": 0, "score": -9999}
         for ext_id, path, score in results:
+            print(score)
             if score >= MINIMUM_SCORE:
                 out.append({"id": ext_id, "path": path, "score": score})
+            if score > maximum_score["score"]:
+                maximum_score = {"id": ext_id, "path": path, "score": score}
+        
+        if len(out) == 0:
+            out.append(maximum_score)
 
         return jsonify({"results": out})
     except Exception as e:
