@@ -4,7 +4,7 @@ import faiss
 import numpy as np
 from typing import List, Tuple, Optional
 
-DEFAULT_DATA_DIR = os.path.join(r"", "data")
+DEFAULT_DATA_DIR = os.path.join(r"", "data") #os.environ.get("DATA_DIR", "/var/www/mindxium/data")
 DEFAULT_IMAGES_DIR = os.path.join(DEFAULT_DATA_DIR, "images")
 DEFAULT_INDEX_PATH = os.path.join(DEFAULT_DATA_DIR, "index.faiss")
 DEFAULT_META_DB = os.path.join(DEFAULT_DATA_DIR, "meta.db")

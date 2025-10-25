@@ -2,6 +2,8 @@ import os
 from flask import Flask, request, jsonify
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
+from urllib.parse import quote
+from backend.faiss_index import DEFAULT_DATA_DIR
 
 from backend.embedding import (
     create_index,
@@ -9,6 +11,8 @@ from backend.embedding import (
     ingest_image_file,
 )
 from backend.faiss_index import DEFAULT_IMAGES_DIR
+from backend.people_db import init_db, get_person, create_or_update_person
+
 
 app = Flask(__name__)
 CORS(app, origins=[
@@ -25,6 +29,8 @@ os.makedirs(DEFAULT_IMAGES_DIR, exist_ok=True)
 # Load / initialize the index & model once
 index = create_index()
 
+init_db()
+
 
 @app.route("/health", methods=["GET"])
 def health():
@@ -33,6 +39,15 @@ def health():
         "vectors": index.count(),
     })
 
+def file_path_to_url(p: str) -> str:
+    """
+    /var/www/mindxium/data/images/cat.jpg  ->  /data/images/cat.jpg
+    """
+    try:
+        rel = os.path.relpath(p, DEFAULT_DATA_DIR) 
+    except ValueError:
+        rel = os.path.basename(p)
+    return "/data/" + quote(rel.replace(os.sep, "/"))
 
 @app.route("/search", methods=["POST"])
 def search():
@@ -61,6 +76,12 @@ def search():
                 out.append({"id": ext_id, "path": path, "score": score})
             if score > maximum_score["score"]:
                 maximum_score = {"id": ext_id, "path": path, "score": score}
+
+
+            # if score >= MINIMUM_SCORE:
+            #     out.append({"id": ext_id, "path": file_path_to_url(path), "score": score})
+            # if score > maximum_score["score"]:
+            #     maximum_score = {"id": ext_id, "path": file_path_to_url(path), "score": score}
         
         if len(out) == 0:
             out.append(maximum_score)
@@ -94,6 +115,62 @@ def ingest_image():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/get_info", methods=["GET", "POST"])
+def get_info():
+    """
+    Get person info by phone_number.
+    - GET:   /get_info?phone_number=...
+    - POST:  JSON { "phone_number": "..." }
+    Returns 404 if not found.
+    """
+    try:
+        if request.method == "GET":
+            phone = (request.args.get("phone_number") or "").strip()
+        else:
+            data = request.get_json(force=True, silent=True) or {}
+            phone = (data.get("phone_number") or "").strip()
+
+        if not phone:
+            return jsonify({"error": "phone_number is required"}), 400
+
+        person = get_person(phone)
+        if not person:
+            return jsonify({"error": "not found"}), 404
+
+        return jsonify({"person": person})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/set_info", methods=["POST"])
+def set_info():
+    """
+    Create or update a person by phone_number.
+    Body JSON must include:
+      - phone_number: string (required)
+    And may include any of:
+      - first_name, last_name, age, relation,
+        memory_about, last_conversation, stories_for, questions_for
+
+    Behavior:
+      - For appendable fields (memory_about, last_conversation, stories_for, questions_for),
+        the new data is APPENDED to whatever exists.
+      - For first_name, last_name, relation, age, the value is set/overwritten.
+      - If the phone_number doesn't exist, a new person is created.
+    """
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        phone = (data.get("phone_number") or "").strip()
+        if not phone:
+            return jsonify({"error": "phone_number is required"}), 400
+
+        # Remove phone_number from payload before passing to updater
+        payload = {k: v for k, v in data.items() if k != "phone_number"}
+
+        action, person = create_or_update_person(phone, payload)
+        return jsonify({"status": action, "person": person})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     # Run the Flask dev server
