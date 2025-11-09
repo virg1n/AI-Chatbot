@@ -4,6 +4,7 @@ from typing import List, Tuple, Iterable
 import torch
 from PIL import Image
 import numpy as np
+from transformers import VisionEncoderDecoderModel, ViTImageProcessor, AutoTokenizer
 
 # open-clip-torch is a lightweight CLIP-like local model
 import open_clip
@@ -15,11 +16,14 @@ print(DEVICE)
 MODEL_NAME = os.environ.get("CLIP_MODEL_NAME", "ViT-B-32")
 MODEL_PRETRAINED = os.environ.get("CLIP_PRETRAINED", "openai")  # small & common
 
-# Lazy singletons
 _model = None
 _preprocess = None
 _tokenizer = None
 _embed_dim = None
+
+_VITGPT2_MODEL = None
+_VITGPT2_EXTRACTOR = None
+_VITGPT2_TOKENIZER = None
 
 
 def get_model():
@@ -40,6 +44,21 @@ def get_model():
             _embed_dim = int(feat.shape[-1])
     return _model, _preprocess, _tokenizer, _embed_dim
 
+def _load_vitgpt2_captioner():
+    global _VITGPT2_MODEL, _VITGPT2_EXTRACTOR, _VITGPT2_TOKENIZER
+    if _VITGPT2_MODEL is None:
+        
+
+        model_name = "nlpconnect/vit-gpt2-image-captioning"
+        _VITGPT2_MODEL = VisionEncoderDecoderModel.from_pretrained(model_name).to(DEVICE)
+        _VITGPT2_MODEL.eval()
+        _VITGPT2_EXTRACTOR = ViTImageProcessor.from_pretrained(model_name)
+        _VITGPT2_TOKENIZER = AutoTokenizer.from_pretrained(model_name)
+    return _VITGPT2_MODEL, _VITGPT2_EXTRACTOR, _VITGPT2_TOKENIZER
+
+def _shorten_caption(text: str, max_words: int = 12) -> str:
+    words = text.strip().rstrip(".").split()
+    return " ".join(words[:max_words])
 
 @torch.no_grad()
 def embed_text(prompt: str) -> np.ndarray:
@@ -195,3 +214,39 @@ def create_index(dim_override: int = None) -> ImageVectorIndex:
     _, _, _, embed_dim = get_model()
     dim = int(dim_override or embed_dim)
     return ImageVectorIndex(dim=dim)
+
+@torch.no_grad()
+def generate_short_description(image_path: str, max_new_tokens: int = 20) -> Tuple[str, float]:
+    """
+    Generate a short, plain-English description for an image.
+
+    Returns:
+        (caption, quality_score)
+        - caption: short string
+        - quality_score: a rough confidence proxy in [0..1] (not used by the endpoint)
+    """
+    model, extractor, tokenizer = _load_vitgpt2_captioner()
+
+    img = Image.open(image_path).convert("RGB")
+    pixel_values = extractor(images=img, return_tensors="pt").pixel_values.to(DEVICE)
+
+    outputs = model.generate(
+        pixel_values,
+        max_new_tokens=max_new_tokens,
+        num_beams=3,
+        do_sample=False,
+        early_stopping=True,
+        no_repeat_ngram_size=2,
+    )
+    caption = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    caption = _shorten_caption(caption, max_words=12)
+
+    # Produce a light-weight "quality" proxy from logit scores if available (fallback to 1.0)
+    try:
+        # Greedy/beam search doesn't expose probs directly; this is a simple heuristic.
+        # You can wire logits processing for a better score if needed.
+        quality = 1.0
+    except Exception:
+        quality = 1.0
+
+    return caption, float(quality)

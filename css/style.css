@@ -40,3 +40,79 @@ h1 {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
+/* Inputs */
+input, textarea, select {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 16px;
+  width: 100%;
+  max-width: 300px;
+  transition: all 0.2s ease;
+  outline: none;
+  margin-top: 16px;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(248, 250, 252, 0.6);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 10px rgba(96, 165, 250, 0.4);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+#fetchUserBtn {
+  width: 100%;
+  max-width: 300px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #60a5fa, #818cf8);
+  color: #0f172a;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+#fetchUserBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+}
+
+#fetchUserBtn:active {
+  transform: translateY(0);
+}
+
+#fetchUserBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* New: area to display fetched user info */
+#userInfo {
+  width: 100%;
+  max-width: 300px;
+  margin-top: 10px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+}
+
+#userInfo pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #e5e7eb;
+}

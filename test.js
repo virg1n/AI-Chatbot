@@ -1,9 +1,4 @@
-const API_BASE =
-  location.hostname === "localhost" || location.hostname === "127.0.0.1"
-    ? "http://127.0.0.1:5000"
-    : ""; // same-origin in prod (behind a proxy)
-const apiUrl = (path) => `${API_BASE}${path}`;
-
+const API_URL = "/search";
 const resultsDiv = document.getElementById("results");
 const AGENT_ID = "agent_0001k7sbyc2teqkbaqks5j3ehxej";
 const WIDGET_POSITION = "bottom-right";
@@ -12,53 +7,6 @@ const DEFAULT_TOPIC = "London";
 const input = document.getElementById("users_name");
 
 let widget; // hoist so listeners can see it
-let first_message = "";
-
-// ADDED: tiny helper
-const randomFrom = (...xs) => xs[Math.floor(Math.random() * xs.length)];
-
-// ADDED: compute + set first_message based on name + fetched "realtion"
-async function updateFirstMessage() {
-  const full = (input.value || "").trim().replace(/\s+/g, " ");
-  const [first_name = "", ...rest] = full.split(" ");
-  const last_name = rest.join(" ");
-
-  // default for all cases: "Hi, {FirstName}"
-  let computed = `Hi, ${first_name || ""}`;
-
-  // fetch only the "realtion" field (if available)
-  if (first_name || last_name) {
-    const qs = new URLSearchParams({ first_name, last_name }).toString();
-    const url = `/get_info?${qs}`;
-    // const url = apiUrl(`/get_info?${qs}`);
-
-    try {
-      const resp = await fetch(url, { method: "GET" });
-      if (resp.ok) {
-        const ct = resp.headers.get("content-type") || "";
-        if (ct.includes("application/json")) {
-          const data = await resp.json();
-          const r = String(data['person']['relation']).toLowerCase();
-          if (r === "wife") {
-            computed = randomFrom("Hi honey", "Hi, my love");
-          } else if (r === "brother") {
-            computed = randomFrom("Hi Bro", "Hi, Brother!");
-            
-            
-          }
-        }
-      }
-    } catch (_) {
-      // on any failure, just keep the default computed greeting
-    }
-  }
-
-  first_message = computed;
-  if (widget) {
-    // put this first_message into the widget
-    widget.setAttribute("override-first-message", first_message);
-  }
-}
 
 function injectElevenLabsWidget() {
   // Load the widget script
@@ -78,8 +26,7 @@ function injectElevenLabsWidget() {
   widget.setAttribute("agent-id", AGENT_ID);
   widget.setAttribute("variant", "full");
 
-  widget.setAttribute("override-first-message", ""); 
-
+  // Helper: set dynamic vars from the current input value
   const updateDynVars = () => {
     const name_lastname = input.value || "";
     widget.setAttribute(
@@ -88,20 +35,15 @@ function injectElevenLabsWidget() {
     );
   };
 
-  // Set initial values and keep them in sync as the user types
+  // Set initial value and keep it in sync as the user types
   updateDynVars();
-  input.addEventListener("input", () => {
-    updateDynVars();
-    // ADDED: recompute first message whenever the name changes
-    updateFirstMessage();
-  });
-
-  updateFirstMessage();
+  input.addEventListener("input", updateDynVars);
 
   // Ensure freshest value right before a call starts
-  widget.addEventListener("elevenlabs-convai:call", async (event) => {
+  widget.addEventListener("elevenlabs-convai:call", (event) => {
     updateDynVars(); // refresh just-in-time
 
+    // your client tool as before
     event.detail.config.clientTools = {
       ShowImage: async ({ topic }) => {
         const prompt = (topic && String(topic).trim()) || DEFAULT_TOPIC;
@@ -149,9 +91,6 @@ function injectElevenLabsWidget() {
         }
       },
     };
-
-    await updateFirstMessage(); 
-
   });
 
   wrapper.appendChild(widget);
@@ -164,6 +103,8 @@ if (document.readyState === "loading") {
 } else {
   injectElevenLabsWidget();
 }
+
+
 
 const fetchBtn = document.createElement("button");
 fetchBtn.id = "fetchUserBtn";
@@ -191,7 +132,6 @@ input.addEventListener("input", (event) => {
   toggleBtnVisibility();
 });
 
-// (unchanged) demo fetch button to show the raw data back to the user
 fetchBtn.addEventListener("click", async () => {
   const full = input.value.trim().replace(/\s+/g, " ");
   const [first_name = "", ...rest] = full.split(" ");
@@ -199,8 +139,8 @@ fetchBtn.addEventListener("click", async () => {
 
   const qs = new URLSearchParams({ first_name, last_name }).toString();
   const url = `/get_info?${qs}`; 
-  // const url = apiUrl(`/get_info?${qs}`);
   
+
   try {
     fetchBtn.disabled = true;
     const originalText = fetchBtn.textContent;

@@ -5,3 +5,5 @@
 *.png
 *.pyc
 mindxium_ed25519*
+assets/*
+*.db

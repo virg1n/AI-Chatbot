@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
 from urllib.parse import quote
@@ -9,12 +9,14 @@ from backend.embedding import (
     create_index,
     embed_text,
     ingest_image_file,
+    generate_short_description,
 )
 from backend.faiss_index import DEFAULT_IMAGES_DIR
-from backend.people_db import init_db, get_person, create_or_update_person
+from backend.people_db import init_db, get_person, get_person_by_name, create_or_update_person
 
+import random
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder=os.path.join(os.path.dirname(__file__), '..', 'templates'))
 CORS(app, origins=[
     "http://127.0.0.1:5500",
     "http://localhost:5500",
@@ -48,6 +50,8 @@ def file_path_to_url(p: str) -> str:
     except ValueError:
         rel = os.path.basename(p)
     return "/data/" + quote(rel.replace(os.sep, "/"))
+
+
 
 @app.route("/search", methods=["POST"])
 def search():
@@ -115,25 +119,66 @@ def ingest_image():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/check_image", methods=["POST"])
+def check_image():
+    """
+    Body: { "query": "image of hong kong" }
+    Returns:
+      { "description": "night cityscape with skyscrapers and harbor" }  if top result score >= MINIMUM_SCORE
+      { "description": null }                                           otherwise
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    query = (data.get("query") or "").strip()
+    if not query:
+        return jsonify({"error": "query is required"}), 400
+
+    try:
+        # 1) Embed the query and search your image index
+        qvec = embed_text(query)
+        results = index.search(qvec, top_k=1)
+
+        if not results:
+            return jsonify({"description": None})
+
+        ext_id, path, score = results[0]
+
+        # 2) Threshold check
+        if float(score) < MINIMUM_SCORE:
+            return jsonify({"description": None})
+
+        # 3) "description"
+        desc, _ = generate_short_description(path)
+
+        return jsonify({"description": desc})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/get_info", methods=["GET", "POST"])
 def get_info():
     """
-    Get person info by phone_number.
-    - GET:   /get_info?phone_number=...
-    - POST:  JSON { "phone_number": "..." }
+    Get person info by phone_number OR by (first_name + last_name).
+    - GET:   /get_info?phone_number=...  OR  /get_info?first_name=...&last_name=...
+    - POST:  JSON { "phone_number": "..."} OR {"first_name":"...","last_name":"..."}
     Returns 404 if not found.
     """
     try:
         if request.method == "GET":
             phone = (request.args.get("phone_number") or "").strip()
+            first_name = (request.args.get("first_name") or "").strip()
+            last_name = (request.args.get("last_name") or "").strip()
         else:
             data = request.get_json(force=True, silent=True) or {}
             phone = (data.get("phone_number") or "").strip()
+            first_name = (data.get("first_name") or "").strip()
+            last_name = (data.get("last_name") or "").strip()
 
-        if not phone:
-            return jsonify({"error": "phone_number is required"}), 400
+        if phone:
+            person = get_person(phone)
+        elif first_name and last_name:
+            person = get_person_by_name(first_name, last_name)
+        else:
+            return jsonify({"error": "Provide phone_number OR (first_name and last_name)"}), 400
 
-        person = get_person(phone)
         if not person:
             return jsonify({"error": "not found"}), 404
 
@@ -145,32 +190,70 @@ def get_info():
 @app.route("/set_info", methods=["POST"])
 def set_info():
     """
-    Create or update a person by phone_number.
-    Body JSON must include:
-      - phone_number: string (required)
-    And may include any of:
+    Create or update a person by identifier:
+      - phone_number   OR
+      - (first_name + last_name)
+
+    Body JSON may include any of:
+      - phone_number (string, required if creating a new person)
       - first_name, last_name, age, relation,
         memory_about, last_conversation, stories_for, questions_for
 
     Behavior:
-      - For appendable fields (memory_about, last_conversation, stories_for, questions_for),
-        the new data is APPENDED to whatever exists.
-      - For first_name, last_name, relation, age, the value is set/overwritten.
-      - If the phone_number doesn't exist, a new person is created.
+      - If phone_number is provided: use it to create or update (existing behavior).
+      - Else if (first_name + last_name) provided: find the person by name and update.
+        If no existing person is found by name, returns 404 (we keep schema minimal).
+      - Appendable fields (memory_about, last_conversation, stories_for, questions_for)
+        are appended; first_name, last_name, relation, age are overwritten.
     """
     try:
         data = request.get_json(force=True, silent=True) or {}
-        phone = (data.get("phone_number") or "").strip()
-        if not phone:
-            return jsonify({"error": "phone_number is required"}), 400
 
-        # Remove phone_number from payload before passing to updater
+        phone = (data.get("phone_number") or "").strip()
+        first_name = (data.get("first_name") or "").strip()
+        last_name = (data.get("last_name") or "").strip()
+
+        # Build payload for update (do not pass phone_number forward)
         payload = {k: v for k, v in data.items() if k != "phone_number"}
 
-        action, person = create_or_update_person(phone, payload)
-        return jsonify({"status": action, "person": person})
+        if phone:
+            action, person = create_or_update_person(phone, payload)
+            return jsonify({"status": action, "person": person})
+
+        # Fallback to name+lastname update
+        if first_name and last_name:
+            # Find existing by name
+            person_lookup = get_person_by_name(first_name, last_name)
+            if not person_lookup:
+                return jsonify({
+                    "error": "not found",
+                    "hint": "No existing person with that name. Provide phone_number to create a new person."
+                }), 404
+
+            phone_target = person_lookup["phone_number"]
+            action, person = create_or_update_person(phone_target, payload)
+            return jsonify({"status": action, "person": person})
+
+        return jsonify({"error": "Provide phone_number OR (first_name and last_name)"}), 400
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route("/get_topic_when_silence", methods=["GET"])
+def get_topic_when_silence():
+    """
+    GET /get_topic_when_silence
+    Returns: { "topic": "<random topic>" }
+    """
+    SILENCE_TOPICS = [
+    "my new friend from Netherlands",
+    "I got a new car BMW",
+    ]
+    try:
+        return jsonify({"topic": random.choice(SILENCE_TOPICS)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     # Run the Flask dev server

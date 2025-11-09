@@ -75,6 +75,11 @@ def create_or_update_person(phone_number: str, payload: Dict[str, Any]) -> Tuple
     """
     - If person exists: append or set fields based on rules
     - If not: create person, then apply same logic
+
+    Special rules:
+      * last_conversation: ALWAYS overwrite (do not append)
+      * memory_about: If new text is longer than existing -> overwrite,
+                      else append (concatenate with a newline)
     Returns (action, person_dict) where action is "created" or "updated"
     """
     phone = normalize_phone(phone_number)
@@ -89,7 +94,6 @@ def create_or_update_person(phone_number: str, payload: Dict[str, Any]) -> Tuple
         try:
             updates["age"] = int(updates["age"])
         except Exception:
-            # If not an int, drop it silently (or raise if you prefer)
             updates.pop("age", None)
 
     with _connect() as con:
@@ -105,15 +109,36 @@ def create_or_update_person(phone_number: str, payload: Dict[str, Any]) -> Tuple
         else:
             existing_dict = dict(existing)
 
-        # Build new values
+        def _to_text(val: Any) -> str:
+            # Accept list or str; convert list to bullet lines
+            if isinstance(val, list):
+                return "\n".join(f"- {str(x)}" for x in val)
+            return "" if val is None else str(val)
+
         new_values: Dict[str, Any] = {}
         for field, value in updates.items():
+            # --- Special-case rules first ---
+            if field == "last_conversation":
+                # ALWAYS OVERWRITE
+                new_values[field] = _to_text(value)
+                continue
+
+            if field == "memory_about":
+                # Overwrite if new longer than old; else append
+                new_text = _to_text(value)
+                old_text = existing_dict.get("memory_about") or ""
+                if len(new_text) >= len(old_text):
+                    new_values[field] = new_text
+                else:
+                    # append without timestamp per requirement to "just concatenate"
+                    new_values[field] = append_text(old_text, new_text)
+                continue
+
+            # --- Default behavior ---
             if field in APPENDABLE_FIELDS:
-                # Accept list or str; convert list to bullet lines
-                if isinstance(value, list):
-                    value = "\n".join(f"- {str(x)}" for x in value)
-                # Optional: timestamp each appended chunk for traceability
-                stamped = f"[{_now_iso()}]\n{value}"
+                # For other appendable fields (e.g., stories_for, questions_for),
+                # keep the original timestamped-append behavior.
+                stamped = f"[{_now_iso()}]\n{_to_text(value)}"
                 new_values[field] = append_text(existing_dict.get(field), stamped)
             else:
                 # set/overwrite (first_name, last_name, relation, age)
@@ -123,14 +148,56 @@ def create_or_update_person(phone_number: str, payload: Dict[str, Any]) -> Tuple
         new_values["updated_at"] = _now_iso()
 
         if new_values:
-            # Prepare dynamic SQL
             assignments = ", ".join(f"{k} = ?" for k in new_values.keys())
             params = list(new_values.values()) + [phone]
             con.execute(f"UPDATE people SET {assignments} WHERE phone_number = ?", params)
             con.commit()
 
-        # Return full person
         person = con.execute(
             "SELECT * FROM people WHERE phone_number = ?", (phone,)
         ).fetchone()
         return action, dict(person)
+
+
+def _escape_like(s: str) -> str:
+    return s.replace("%", r"\%").replace("_", r"\_")
+
+def get_person_by_name(first_name: str, last_name: str) -> Optional[Dict[str, Any]]:
+    """
+    Look up a person by name, returning the first one.
+    Returns a dict or None.
+    """
+    fn = (first_name or "").strip()
+    ln = (last_name or "").strip()
+    if not fn or not ln:
+        return None
+
+    with _connect() as con:
+        con.row_factory = sqlite3.Row
+
+        row = con.execute(
+            """
+            SELECT * FROM people
+            WHERE lower(first_name) = lower(?)
+              AND lower(last_name)  = lower(?)
+            ORDER BY datetime(updated_at) DESC
+            LIMIT 1
+            """,
+            (fn, ln),
+        ).fetchone()
+        if row:
+            return dict(row)
+
+        fn_like = f"%{_escape_like(fn)}%"
+        ln_like = f"%{_escape_like(ln)}%"
+        row = con.execute(
+            r"""
+            SELECT * FROM people
+            WHERE lower(first_name) LIKE lower(?) ESCAPE '\'
+              AND lower(last_name)  LIKE lower(?) ESCAPE '\'
+            ORDER BY datetime(updated_at) DESC
+            LIMIT 1
+            """,
+            (fn_like, ln_like),
+        ).fetchone()
+        return dict(row) if row else None

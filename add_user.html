@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mindxium · Set Info</title>
+
+  <!-- Font + your site CSS -->
+  <link rel="preload" as="font" href="assets/Michroma/Michroma.ttf" type="font/ttf" crossorigin>
+  <link rel="stylesheet" href="css/demo_cosmo.css" />
+</head>
+<body class="people">
+  <div class="bg"></div>
+
+  <header class="topbar">
+    <a class="brand-link" href="index.html">Mindxium</a>
+  </header>
+
+  <main class="people-wrap">
+    <!-- <h2 class="section-title">Set / Update Person</h2> -->
+    <!-- <p class="muted" style="margin-top:-8px;">
+      Identify by <strong>phone_number</strong> <em>or</em> by <strong>first_name + last_name</strong>.
+    </p> -->
+
+    <section class="card" style="max-width:900px;margin:18px auto;padding:20px;">
+      <form id="setInfoForm" novalidate>
+        <!-- Identification -->
+        <fieldset class="fieldset">
+          <legend>Identifier</legend>
+
+          <div class="field">
+            <label for="phone_number">Phone number</label>
+            <input id="phone_number" name="phone_number" type="tel" placeholder="+1 555 123 4567" />
+            <small class="hint">If provided, this is used to create/update.</small>
+          </div>
+
+          <div class="grid two-col" style="gap:12px;">
+            <div class="field">
+              <label for="first_name">First name</label>
+              <input id="first_name" name="first_name" type="text" placeholder="James" />
+            </div>
+            <div class="field">
+              <label for="last_name">Last name</label>
+              <input id="last_name" name="last_name" type="text" placeholder="KB" />
+            </div>
+          </div>
+          <small class="hint">If phone is empty, both first and last are required.</small>
+        </fieldset>
+
+        <!-- Overwritten fields -->
+        <fieldset class="fieldset">
+          <legend>Profile (overwrites)</legend>
+          <div class="grid three-col" style="gap:12px;">
+            <div class="field">
+              <label for="relation">Relation</label>
+              <input id="relation" name="relation" type="text" placeholder="friend / client / family" />
+            </div>
+            <div class="field">
+              <label for="age">Age</label>
+              <input id="age" name="age" type="number" min="0" inputmode="numeric" placeholder="28" />
+            </div>
+            <div class="field">
+              <label for="overwrite_names_note">Note</label>
+              <input id="overwrite_names_note" type="text" disabled value="first/last/age/relation overwrite" />
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- Appendable fields -->
+        <fieldset class="fieldset">
+          <legend>Notes (append)</legend>
+          <div class="grid two-col" style="gap:12px;">
+            <div class="field">
+              <label for="memory_about">memory_about (append)</label>
+              <textarea id="memory_about" name="memory_about" rows="3" placeholder="New memory to append"></textarea>
+            </div>
+            <div class="field">
+              <label for="last_conversation">last_conversation (append)</label>
+              <textarea id="last_conversation" name="last_conversation" rows="3" placeholder="Latest conversation note"></textarea>
+            </div>
+          </div>
+
+          <div class="grid two-col" style="gap:12px; margin-top:12px;">
+            <div class="field">
+              <label for="stories_for">stories_for (append)</label>
+              <textarea id="stories_for" name="stories_for" rows="3" placeholder="Stories ideas…"></textarea>
+            </div>
+            <div class="field">
+              <label for="questions_for">questions_for (append)</label>
+              <textarea id="questions_for" name="questions_for" rows="3" placeholder="Questions to ask next time…"></textarea>
+            </div>
+          </div>
+        </fieldset>
+
+        <div class="actions" style="margin-top:16px;display:flex;gap:12px;align-items:center;">
+          <button id="submitBtn" class="btn primary" type="submit">Send to /set_info</button>
+          <button class="btn" type="reset">Reset</button>
+          <span id="busy" class="muted" aria-live="polite" style="display:none;">Sending…</span>
+        </div>
+
+        <div id="status" role="status" aria-live="polite" style="margin-top:16px;"></div>
+        <pre id="result" class="code" style="margin-top:8px; white-space:pre-wrap;"></pre>
+      </form>
+    </section>
+
+    <nav class="footer-links">
+      <a href="/about.html">about us</a>
+      <a href="/contact_us.html">contact</a>
+    </nav>
+  </main>
+
+  <noscript>Please enable JavaScript to submit this form.</noscript>
+  <script type="module" src="js/set_info.js"></script>
+</body>
+</html>

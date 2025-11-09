@@ -1,0 +1,186 @@
+/* ===== Mindxium minimal theme ===== */
+@font-face {
+  font-family: "Michroma";
+  src: url("Michroma/Michroma.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  color: #ccd0d7;
+  font-family: "Michroma", system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+  letter-spacing: .02em;
+  background: #020617;
+  overflow-x: hidden;
+}
+
+a { color: #c9ccd2; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Shared background */
+.bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(1200px 800px at 20% 15%, rgba(255,255,255,.06), transparent 60%) no-repeat,
+              url("main_bg_space.jpg") center / cover no-repeat #000;
+  background-image:
+      radial-gradient(1200px 800px at 20% 15%, rgba(255,255,255,.06), transparent 60%),
+      url("../assets/main_bg_space.jpg");
+  filter: saturate(1.05);
+}
+
+/* Footer links (used on both pages) */
+.footer-links {
+  position: fixed;
+  left: clamp(16px, 6vw, 80px);
+  bottom: clamp(16px, 6vh, 80px);
+  display: flex;
+  gap: clamp(24px, 6vw, 120px);
+  font-size: clamp(12px, 1.3vw, 18px);
+}
+.footer-links a { opacity: .9; }
+.footer-links a:hover { opacity: 1; text-decoration: none; filter: drop-shadow(0 0 8px rgba(255,255,255,.15)); }
+
+/* ===== Home ===== */
+.home-wrap { min-height: 100svh; position: relative; }
+
+.hero {
+  position: absolute;
+  top: clamp(6vh, 10vh, 14vh);
+  left: clamp(16px, 10vw, 180px);
+}
+
+.brand-hero {
+  margin: 0;
+  font-size: clamp(56px, 12vw, 78px);
+  line-height: .8;
+  font-weight: 400;
+  color: #d0d3d8;
+  text-shadow: 0 12px 40px rgba(0,0,0,.45);
+}
+
+.tagline {
+  margin: clamp(8px, 1.4vw, 16px) 0 0 clamp(8px, 3vw, 32px);
+  font-size: clamp(14px, 2.2vw, 32px);
+  color: #a7acb3;
+  letter-spacing: .06em;
+  text-shadow: 0 10px 30px rgba(0,0,0,.55);
+  white-space: nowrap;
+}
+
+/* "demo" call-to-action */
+.cta-demo {
+  position: absolute;
+  right: clamp(16px, 8vw, 140px);
+  top: 48vh;
+  transform: translateY(-50%);
+  font-size: clamp(22px, 3.2vw, 48px);
+  text-transform: lowercase;
+  padding: .25em .45em;
+  border-radius: 12px;
+  background: rgba(2, 8, 23, .35);
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 10px 30px rgba(0,0,0,.4);
+}
+.cta-demo:hover {
+  background: rgba(255,255,255,.05);
+  text-decoration: none;
+}
+
+/* ===== People (demo) page ===== */
+.topbar {
+  position: fixed;
+  top: clamp(8px, 4vh, 24px);
+  left: clamp(16px, 6vw, 80px);
+  z-index: 2;
+}
+.brand-link {
+  font-size: clamp(20px, 4vw, 42px);
+  color: #d0d3d8;
+  text-shadow: 0 8px 24px rgba(0,0,0,.45);
+}
+.brand-link:hover { text-decoration: none; opacity: .95; }
+
+.people-wrap {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  grid-template-rows: auto 1fr auto;
+  padding-inline: clamp(16px, 4vw, 48px);
+}
+
+.section-title {
+  position: absolute;
+  top: 26vh;
+  left: clamp(16px, 12vw, 200px);
+  margin: 0;
+  font-weight: 400;
+  color: #c9ccd2;
+  font-size: clamp(18px, 3vw, 36px);
+  letter-spacing: .08em;
+}
+
+.avatars {
+  margin-top: 24vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(28px, 10vw, 180px);
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.avatar-card {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+  filter: drop-shadow(0 12px 30px rgba(0,0,0,.45));
+}
+.avatar-card:hover { text-decoration: none; transform: translateY(-1px); }
+
+.avatar-frame {
+  width: clamp(110px, 13vw, 180px);
+  height: clamp(110px, 13vw, 180px);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(60% 60% at 40% 35%, rgba(255,255,255,.06), rgba(255,255,255,.0)),
+              rgba(15, 23, 42, .85);
+  border: 1.5px solid rgba(255,255,255,.18);
+}
+.avatar-frame img {
+  width: 70%;
+  height: auto;
+  image-rendering: -webkit-optimize-contrast;
+  filter: grayscale(50%) contrast(95%) brightness(105%);
+}
+
+.avatar-name {
+  font-size: clamp(12px, 1.6vw, 18px);
+  color: #c3c7cd;
+}
+
+/* A11y */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 700px) {
+  .section-title { top: 22vh; }
+  .avatars { margin-top: 20vh; gap: clamp(20px, 8vw, 80px); }
+}

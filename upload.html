@@ -32,23 +32,32 @@
     .error { color: red; }
     .pending { color: #555; }
   </style>
+  <link rel="stylesheet" href="css/demo_cosmo.css" />
 </head>
 <body>
+  <div class="bg"></div>
+
+  <header class="topbar">
+    <a class="brand-link" href="index.html">Mindxium</a>
+  </header>
   <nav>
     <ul>
     <li><a href="index.html" style="color: black;">search</a></li>
   </ul>
   </nav>
-  <h1>📤 Upload Images to Vector Database</h1>
+  <h1 style="color: white;"> Upload Images to Vector Database</h1>
 
   <div id="uploadBox">
     <input type="file" id="fileInput" accept="image/*" multiple />
     <button id="uploadBtn" type="button">Upload & Embed</button>
     <div id="log"></div>
   </div>
+  <nav class="footer-links">
+        <a href="/james-kb.html">James KB</a>
+    </nav>
 
   <script>
-  const API_URL = "/ingest-image";
+  const API_URL = "http://localhost:5000/ingest-image"; // ingest-image
   const fileInput = document.getElementById("fileInput");
   const uploadBtn = document.getElementById("uploadBtn");
   const logDiv = document.getElementById("log");
