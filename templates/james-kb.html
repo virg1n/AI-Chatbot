@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}AI Chatbot · Image Feature{% endblock %}
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    /* Uniform thumbnail gallery */
+    #results {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .result-item {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 10px;
+      text-align: center;
+    }
+    /* exact same size for every image */
+    img.result-thumb {
+      width: 140px;                 /* <- change this single number if you want bigger/smaller */
+      height: 140px;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;            /* crop to fill box; keeps it neat */
+      border-radius: 8px;
+      display: block;
+      margin: 0 auto;
+    }
+    .score {
+      margin-top: 6px;
+      font-size: 12px;
+      opacity: .85;
+    }
+  </style>
+{% endblock %}
+{% block content %}
+  <nav>
+    <ul>
+      <li><a href="{{ url_for('home') }}" style="color: white;">home</a></li>
+      <li><a href="{{ url_for('upload') }}" style="color: white;">upload</a></li>
+    </ul>
+  </nav>
+
+  <div class="container">
+    <section class="card" aria-labelledby="title">
+      <h1 id="title">AI Chatbot. Image Feature</h1>
+      <input type="text" name="users_name" id="users_name" placeholder="user's name and last name">
+
+      <div class="media">
+        <img
+          src="https://png.pngtree.com/png-vector/20191126/ourmid/pngtree-image-of-cute-radish-vector-or-color-illustration-png-image_2040180.jpg"
+          alt="image from bot"
+          class="image_to_show_1"
+          style="display: none;"
+        >
+      </div>
+
+      <div id="results"></div>
+      <nav class="footer-links">
+        <a href="{{ url_for('upload') }}">upload photo</a>
+        <a href="{{ url_for('add_user') }}">Add User</a>
+      </nav>
+    </section>
+  </div>
+{% endblock %}
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
+{% endblock %}

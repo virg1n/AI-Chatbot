@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Add / Update Person{% endblock %}
+{% block bodyclass %}people{% endblock %}
+
+{% block content %}
+<main class="people-wrap">
+  <section class="card" style="max-width:900px;margin:18px auto;padding:20px;">
+    <h1 style="margin-bottom:12px;">Add / Update Person</h1>
+
+    <form id="setInfoForm" novalidate>
+      <!-- Identifier -->
+      <fieldset class="fieldset" style="margin-bottom:14px;">
+        <legend>Identifier</legend>
+
+        <div class="field">
+          <label for="phone_number">Phone number</label>
+          <input id="phone_number" name="phone_number" type="tel" placeholder="+1 555 123 4567">
+          <small class="hint">Provide phone OR both first &amp; last name.</small>
+        </div>
+
+        <div class="grid two-col" style="gap:12px;margin-top:10px;">
+          <div class="field">
+            <label for="first_name">First name</label>
+            <input id="first_name" name="first_name" type="text" placeholder="James">
+          </div>
+          <div class="field">
+            <label for="last_name">Last name</label>
+            <input id="last_name" name="last_name" type="text" placeholder="KB">
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- Overwritten fields -->
+      <fieldset class="fieldset" style="margin-bottom:14px;">
+        <legend>Profile (overwrites)</legend>
+        <div class="grid two-col" style="gap:12px;">
+          <div class="field">
+            <label for="relation">Relation</label>
+            <input id="relation" name="relation" type="text" placeholder="friend / client / family">
+          </div>
+          <div class="field">
+            <label for="age">Age</label>
+            <input id="age" name="age" type="number" min="0" inputmode="numeric" placeholder="28">
+          </div>
+        </div>
+        <small class="hint">first_name, last_name, relation, age overwrite existing values.</small>
+      </fieldset>
+
+      <!-- Appendable fields -->
+      <fieldset class="fieldset">
+        <legend>Notes (append)</legend>
+
+        <div class="grid two-col" style="gap:12px;">
+          <div class="field">
+            <label for="memory_about">memory_about</label>
+            <textarea id="memory_about" name="memory_about" rows="3" placeholder="New memory to append"></textarea>
+          </div>
+          <div class="field">
+            <label for="last_conversation">last_conversation</label>
+            <textarea id="last_conversation" name="last_conversation" rows="3" placeholder="Latest conversation note"></textarea>
+          </div>
+        </div>
+
+        <div class="grid two-col" style="gap:12px;margin-top:12px;">
+          <div class="field">
+            <label for="stories_for">stories_for</label>
+            <textarea id="stories_for" name="stories_for" rows="3" placeholder="Stories ideas…"></textarea>
+          </div>
+          <div class="field">
+            <label for="questions_for">questions_for</label>
+            <textarea id="questions_for" name="questions_for" rows="3" placeholder="Questions to ask next time…"></textarea>
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- Actions + feedback -->
+      <div class="actions" style="margin-top:16px;display:flex;gap:12px;align-items:center;">
+        <button id="submitBtn" class="btn primary" type="submit">Save</button>
+        <button class="btn" type="reset">Reset</button>
+        <span id="busy" class="muted" aria-live="polite" style="display:none;">Sending…</span>
+      </div>
+
+      <div id="status" role="status" aria-live="polite" style="margin-top:16px;"></div>
+      <pre id="result" class="code" style="margin-top:8px; white-space:pre-wrap;"></pre>
+    </form>
+
+    <nav class="footer-links" style="margin-top:16px;">
+      <a href="{{ url_for('about') }}">about us</a>
+      <a href="{{ url_for('contact') }}">contact</a>
+    </nav>
+  </section>
+</main>
+{% endblock %}
+
+{% block scripts %}
+  <!-- If you want a custom base path, set: window.API_BASE = "/api"; -->
+  <script src="{{ url_for('static', filename='js/set_info.js') }}" defer></script>
+{% endblock %}

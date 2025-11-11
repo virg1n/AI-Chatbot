@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>{% block title %}Mindxium{% endblock %}</title>
+
+  <link rel="preload" as="font"
+        href="{{ url_for('static', filename='assets/Michroma/Michroma.ttf') }}"
+        type="font/ttf" crossorigin>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/demo_cosmo.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body class="{% block bodyclass %}{% endblock %}">
+  <div class="bg"></div>
+
+  <header class="topbar">
+    <a class="brand-link" href="{{ url_for('home') }}">Mindxium</a>
+  </header>
+
+  {% block content %}{% endblock %}
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

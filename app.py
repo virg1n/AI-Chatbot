@@ -4,6 +4,9 @@ from werkzeug.utils import secure_filename
 from flask_cors import CORS
 from urllib.parse import quote
 from backend.faiss_index import DEFAULT_DATA_DIR
+from flask import send_from_directory
+from flask import send_file, abort
+
 
 from backend.embedding import (
     create_index,
@@ -16,11 +19,12 @@ from backend.people_db import init_db, get_person, get_person_by_name, create_or
 
 import random
 
-app = Flask(__name__, template_folder=os.path.join(os.path.dirname(__file__), '..', 'templates'))
+app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app, origins=[
     "http://127.0.0.1:5500",
     "http://localhost:5500",
-    "http://localhost:3000"
+    "http://localhost:3000",
+    "http://localhost:5000"
 ])
 
 MINIMUM_SCORE = 0.25
@@ -51,6 +55,48 @@ def file_path_to_url(p: str) -> str:
         rel = os.path.basename(p)
     return "/data/" + quote(rel.replace(os.sep, "/"))
 
+@app.route("/data/<path:rel>")
+def serve_data(rel: str):
+    """
+    Serve files stored under DEFAULT_DATA_DIR at the /data/* URL.
+    Example: /data/images/<uuid>.jpg -> <DEFAULT_DATA_DIR>/images/<uuid>.jpg
+    """
+    base = os.path.abspath(DEFAULT_DATA_DIR)
+    full = os.path.abspath(os.path.join(base, rel))
+
+    # Prevent path traversal and ensure the file exists
+    if not full.startswith(base) or not os.path.isfile(full):
+        abort(404)
+
+    return send_file(full)
+
+@app.route("/")
+def home():
+    return render_template("index.html")
+
+@app.route("/demo")
+def demo():
+    return render_template("demo.html")
+
+@app.route("/contact")
+def contact():
+    return render_template("contact_us.html")
+
+@app.route("/james-kb")
+def james_kb():
+    return render_template("james-kb.html")
+
+@app.route("/about")
+def about():
+    return render_template("about.html")
+
+@app.route("/add-user")
+def add_user():
+    return render_template("add_user.html")
+
+@app.route("/upload_image")
+def upload():
+    return render_template("upload.html")
 
 
 @app.route("/search", methods=["POST"])
@@ -73,21 +119,16 @@ def search():
         q = embed_text(prompt)
         results = index.search(q, top_k=top_k)
         out = []
-        maximum_score = {"id": 0, "path": 0, "score": -9999}
+        maximum_score = {"id": 0, "path": "", "score": -9999}
+
         for ext_id, path, score in results:
-            print(score)
+            web_url = file_path_to_url(path)  # <-- convert to /data/...
             if score >= MINIMUM_SCORE:
-                out.append({"id": ext_id, "path": path, "score": score})
+                out.append({"id": ext_id, "path": web_url, "score": score})
             if score > maximum_score["score"]:
-                maximum_score = {"id": ext_id, "path": path, "score": score}
+                maximum_score = {"id": ext_id, "path": web_url, "score": score}
 
-
-            # if score >= MINIMUM_SCORE:
-            #     out.append({"id": ext_id, "path": file_path_to_url(path), "score": score})
-            # if score > maximum_score["score"]:
-            #     maximum_score = {"id": ext_id, "path": file_path_to_url(path), "score": score}
-        
-        if len(out) == 0:
+        if not out:
             out.append(maximum_score)
 
         return jsonify({"results": out})

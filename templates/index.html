@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Mindxium{% endblock %}
+{% block bodyclass %}home{% endblock %}
+{% block content %}
+  <main class="home-wrap">
+    <div class="hero">
+      <h1 class="brand-hero">Mindxium</h1>
+      <p class="tagline">exploring the human mind</p>
+    </div>
+
+    <a class="cta-demo" href="{{ url_for('demo') }}" aria-label="Open demo">demo</a>
+
+    <nav class="footer-links">
+      <a href="#">about us</a>
+      <a href="{{ url_for('contact') }}">contact</a>
+    </nav>
+  </main>
+{% endblock %}
