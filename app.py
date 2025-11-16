@@ -184,8 +184,8 @@ def check_image():
         ext_id, path, score = results[0]
 
         # 2) Threshold check
-        if float(score) < MINIMUM_SCORE:
-            return jsonify({"description": None})
+        # if float(score) < MINIMUM_SCORE:
+        #     return jsonify({"description": None})
 
         # 3) "description"
         desc, _ = generate_short_description(path)

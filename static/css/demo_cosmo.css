@@ -184,3 +184,37 @@ a:hover { text-decoration: underline; }
   .section-title { top: 22vh; }
   .avatars { margin-top: 20vh; gap: clamp(20px, 8vw, 80px); }
 }
+
+.result-item {
+  position: relative;
+  display: inline-block; /* Or whatever layout you use */
+  /* Add other styles like margin, border, etc. as needed */
+}
+
+
+.download-btn {
+  position: absolute;   /* Positions it relative to .result-item */
+  bottom: 8px;          /* 8px from the bottom edge */
+  right: 8px;           /* 8px from the right edge */
+  
+  /* Styling to make it a small, circular button */
+  background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent black */
+  color: white;         /* White icon/emoji */
+  border-radius: 50%;   /* Makes it a circle */
+  width: 30px;          /* Fixed width */
+  height: 30px;         /* Fixed height */
+  
+  /* Centering the icon/emoji inside the circle */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  text-decoration: none; /* Removes the underline from the link */
+  font-size: 14px;       /* Size of the emoji */
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.download-btn:hover {
+  background-color: rgba(0, 0, 0, 0.9); /* Darker on hover */
+}

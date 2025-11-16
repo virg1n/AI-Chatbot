@@ -353,22 +353,8 @@ function injectElevenLabsWidget() {
 
           resultsDiv.innerHTML = "";
           data.results.forEach((item) => {
-            // const card = document.createElement("div");
-            // card.className = "result-item";
-
-            // const resultImg = document.createElement("img");
-            // resultImg.src = item.path; // backend now returns a /data/... URL (see Python patch)
-            // resultImg.alt = item.id;
-
-            // const score = document.createElement("div");
-            // score.className = "score";
-            // score.textContent = `Score: ${Number(item.score).toFixed(3)}`;
-
-            // card.appendChild(resultImg);
-            // card.appendChild(score);
-            // resultsDiv.appendChild(card);
             const card = document.createElement("div");
-            card.className = "result-item";
+            card.className = "result-item"; // This card needs 'position: relative' in your CSS
 
             const resultImg = document.createElement("img");
             resultImg.className = "result-thumb";
@@ -382,14 +368,26 @@ function injectElevenLabsWidget() {
             // Score badge (fixed position; won’t change card height)
             const s = Number(item.score) || 0;
             const badge = document.createElement("span");
-            badge.textContent = s.toFixed(3);           // e.g., "0.812"
+            badge.textContent = s.toFixed(3);       // e.g., "0.812"
             badge.title = `Similarity score: ${s}`;     // tooltip for exact value
             badge.setAttribute("aria-label", `Score ${s.toFixed(3)}`);
 
+            const downloadLink = document.createElement("a");
+            downloadLink.href = item.path; 
+            
+            const filename = (item.id || 'image') + '.jpg'; 
+            downloadLink.download = filename; // This attribute triggers the download
+            
+            downloadLink.className = "download-btn"; // For styling
+            downloadLink.innerHTML = "⬇️"; // Using an emoji as the icon
+            downloadLink.title = "Download image";
+            downloadLink.setAttribute("aria-label", "Download image");
+
             card.appendChild(resultImg);
             card.appendChild(badge);
+            card.appendChild(downloadLink); // Add the new download button to the card
             resultsDiv.appendChild(card);
-                      });
+          });
 
           // Example return value for clientTools
           const jsonPath = "test.one";

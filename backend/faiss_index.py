@@ -4,15 +4,27 @@ import faiss
 import numpy as np
 from typing import List, Tuple, Optional
 
-DEFAULT_DATA_DIR = os.path.join(r"", "data") #os.environ.get("DATA_DIR", "/var/www/mindxium/data")
-DEFAULT_IMAGES_DIR = os.path.join(DEFAULT_DATA_DIR, "images")
-DEFAULT_INDEX_PATH = os.path.join(DEFAULT_DATA_DIR, "index.faiss")
-DEFAULT_META_DB = os.path.join(DEFAULT_DATA_DIR, "meta.db")
+from pathlib import Path
+BASE_DIR = Path(__file__).resolve().parents[1]
+DEFAULT_DATA_DIR = Path(os.environ.get("DATA_DIR", str(BASE_DIR / "data")))
 
+DEFAULT_IMAGES_DIR = str(DEFAULT_DATA_DIR / "images")
+DEFAULT_INDEX_PATH = str(DEFAULT_DATA_DIR / "index.faiss")
+DEFAULT_META_DB     = str(DEFAULT_DATA_DIR / "meta.db")
 
 def _ensure_dirs():
-    os.makedirs(DEFAULT_DATA_DIR, exist_ok=True)
-    os.makedirs(DEFAULT_IMAGES_DIR, exist_ok=True)
+    Path(DEFAULT_DATA_DIR).mkdir(parents=True, exist_ok=True)
+    Path(DEFAULT_IMAGES_DIR).mkdir(parents=True, exist_ok=True)
+
+# DEFAULT_DATA_DIR = os.path.join(r"", "data") #os.environ.get("DATA_DIR", "/var/www/mindxium/data")
+# DEFAULT_IMAGES_DIR = os.path.join(DEFAULT_DATA_DIR, "images")
+# DEFAULT_INDEX_PATH = os.path.join(DEFAULT_DATA_DIR, "index.faiss")
+# DEFAULT_META_DB = os.path.join(DEFAULT_DATA_DIR, "meta.db")
+
+
+# def _ensure_dirs():
+#     os.makedirs(DEFAULT_DATA_DIR, exist_ok=True)
+#     os.makedirs(DEFAULT_IMAGES_DIR, exist_ok=True)
 
 
 class ImageVectorIndex:
