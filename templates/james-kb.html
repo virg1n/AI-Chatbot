@@ -1,49 +1,63 @@
-{% extends "base.html" %}
-{% block title %}AI Chatbot · Image Feature{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}AI Chatbot - Image Feature{% endblock %}
+{% block bodyclass %}kb{% endblock %}
 {% block head %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <style>
+    body.kb {
+      display: block;
+      min-height: 100vh;
+      padding: clamp(32px, 8vw, 80px);
+    }
+    body.kb .container {
+      width: min(1100px, 100%);
+      margin: 0 auto;
+      text-align: left;
+    }
+    body.kb .card {
+      text-align: left;
+    }
     /* Uniform thumbnail gallery */
     #results {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(160px, 200px));
+      justify-content: flex-start;
+      justify-items: flex-start;
+      align-items: flex-start;
       gap: 12px;
       margin-top: 12px;
     }
     .result-item {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: flex-start;
       background: rgba(255,255,255,0.05);
       border-radius: 12px;
       padding: 10px;
-      text-align: center;
+      text-align: left;
     }
     /* exact same size for every image */
     img.result-thumb {
-      width: 140px;                 /* <- change this single number if you want bigger/smaller */
+      width: 140px;
       height: 140px;
       aspect-ratio: 1 / 1;
-      object-fit: cover;            /* crop to fill box; keeps it neat */
+      object-fit: cover;
       border-radius: 8px;
       display: block;
-      margin: 0 auto;
+      margin: 0;
     }
     .score {
-      margin-top: 6px;
+      margin-top: 0;
       font-size: 12px;
       opacity: .85;
     }
   </style>
 {% endblock %}
 {% block content %}
-  <nav>
-    <ul>
-      <li><a href="{{ url_for('home') }}" style="color: white;">home</a></li>
-      <li><a href="{{ url_for('upload') }}" style="color: white;">upload</a></li>
-    </ul>
-  </nav>
-
   <div class="container">
     <section class="card" aria-labelledby="title">
-      <h1 id="title">AI Chatbot. Image Feature</h1>
       <input type="text" name="users_name" id="users_name" placeholder="user's name and last name">
 
       <div class="media">

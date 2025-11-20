@@ -379,7 +379,10 @@ function injectElevenLabsWidget() {
             downloadLink.download = filename; // This attribute triggers the download
             
             downloadLink.className = "download-btn"; // For styling
-            downloadLink.innerHTML = "⬇️"; // Using an emoji as the icon
+            downloadLink.innerHTML = `
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M6 17h12M12 5v8m0 0 4-4m-4 4-4-4" />
+              </svg>`;
             downloadLink.title = "Download image";
             downloadLink.setAttribute("aria-label", "Download image");
 

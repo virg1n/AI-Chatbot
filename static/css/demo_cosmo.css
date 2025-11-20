@@ -53,11 +53,14 @@ a:hover { text-decoration: underline; }
 .hero {
   position: absolute;
   top: clamp(6vh, 10vh, 14vh);
-  left: clamp(16px, 10vw, 180px);
+  left: clamp(32px, 14vw, 240px);
 }
 
 .brand-hero {
   margin: 0;
+  display: inline-flex;
+  align-items: flex-end;
+  gap: clamp(12px, 2vw, 36px);
   font-size: clamp(56px, 12vw, 78px);
   line-height: .8;
   font-weight: 400;
@@ -66,7 +69,11 @@ a:hover { text-decoration: underline; }
 }
 
 .tagline {
-  margin: clamp(8px, 1.4vw, 16px) 0 0 clamp(8px, 3vw, 32px);
+  margin: 0;
+  padding-left: clamp(12px, 2vw, 32px);
+  border-left: 1px solid rgba(255,255,255,.15);
+  display: inline-flex;
+  align-items: center;
   font-size: clamp(14px, 2.2vw, 32px);
   color: #a7acb3;
   letter-spacing: .06em;
@@ -85,7 +92,8 @@ a:hover { text-decoration: underline; }
   padding: .25em .45em;
   border-radius: 12px;
   background: rgba(2, 8, 23, .35);
-  border: 1px solid rgba(255,255,255,.12);
+  border: none;
+  outline: none;
   box-shadow: 0 10px 30px rgba(0,0,0,.4);
 }
 .cta-demo:hover {
@@ -100,40 +108,49 @@ a:hover { text-decoration: underline; }
   left: clamp(16px, 6vw, 80px);
   z-index: 2;
 }
+.home .topbar {
+  display: none;
+}
 .brand-link {
   font-size: clamp(20px, 4vw, 42px);
   color: #d0d3d8;
   text-shadow: 0 8px 24px rgba(0,0,0,.45);
+  font-family: "Michroma", system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 .brand-link:hover { text-decoration: none; opacity: .95; }
 
 .people-wrap {
   min-height: 100svh;
-  display: grid;
-  place-items: center;
-  grid-template-rows: auto 1fr auto;
-  padding-inline: clamp(16px, 4vw, 48px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(28px, 6vh, 60px);
+  padding: clamp(80px, 10vh, 140px) clamp(16px, 6vw, 64px);
 }
 
 .section-title {
-  position: absolute;
-  top: 26vh;
-  left: clamp(16px, 12vw, 200px);
+  position: static;
   margin: 0;
+  text-align: left;
+  align-self: flex-start;
+  margin-left: clamp(8px, 6vw, 80px);
   font-weight: 400;
   color: #c9ccd2;
-  font-size: clamp(18px, 3vw, 36px);
+  font-size: clamp(15px, 2vw, 22px);
   letter-spacing: .08em;
+  text-transform: uppercase;
 }
 
 .avatars {
-  margin-top: 24vh;
+  margin-top: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(28px, 10vw, 180px);
+  gap: clamp(28px, 8vw, 96px);
   flex-wrap: wrap;
-  width: 100%;
+  width: min(900px, 100%);
+  margin-inline: auto;
 }
 
 .avatar-card {
@@ -142,12 +159,20 @@ a:hover { text-decoration: underline; }
   gap: 12px;
   text-align: center;
   filter: drop-shadow(0 12px 30px rgba(0,0,0,.45));
+  transition: transform .2s ease;
 }
 .avatar-card:hover { text-decoration: none; transform: translateY(-1px); }
+.avatar-card--static {
+  cursor: default;
+  pointer-events: none;
+}
+.avatar-card--static:hover {
+  transform: none;
+}
 
 .avatar-frame {
-  width: clamp(110px, 13vw, 180px);
-  height: clamp(110px, 13vw, 180px);
+  width: clamp(92px, 11vw, 150px);
+  height: clamp(92px, 11vw, 150px);
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -156,14 +181,14 @@ a:hover { text-decoration: underline; }
   border: 1.5px solid rgba(255,255,255,.18);
 }
 .avatar-frame img {
-  width: 70%;
+  width: 68%;
   height: auto;
   image-rendering: -webkit-optimize-contrast;
   filter: grayscale(50%) contrast(95%) brightness(105%);
 }
 
 .avatar-name {
-  font-size: clamp(12px, 1.6vw, 18px);
+  font-size: clamp(12px, 1.6vw, 17px);
   color: #c3c7cd;
 }
 
@@ -181,8 +206,16 @@ a:hover { text-decoration: underline; }
 }
 
 @media (max-width: 700px) {
-  .section-title { top: 22vh; }
-  .avatars { margin-top: 20vh; gap: clamp(20px, 8vw, 80px); }
+  .people-wrap { padding-top: clamp(64px, 12vh, 120px); }
+  .avatars { gap: clamp(16px, 10vw, 56px); }
+  .brand-hero {
+    flex-wrap: wrap;
+    line-height: 1;
+  }
+  .tagline {
+    border-left: none;
+    padding-left: 0;
+  }
 }
 
 .result-item {
@@ -217,4 +250,8 @@ a:hover { text-decoration: underline; }
 
 .download-btn:hover {
   background-color: rgba(0, 0, 0, 0.9); /* Darker on hover */
+}
+.download-btn svg {
+  width: 16px;
+  height: 16px;
 }

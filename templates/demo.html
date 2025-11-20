@@ -1,5 +1,5 @@
-{% extends "base.html" %}
-{% block title %}Mindxium · Demo{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}Mindxium - Demo{% endblock %}
 {% block bodyclass %}people{% endblock %}
 {% block content %}
   <main class="people-wrap">
@@ -8,24 +8,24 @@
     <section class="avatars">
       <a class="avatar-card" href="{{ url_for('james_kb') }}">
         <span class="avatar-frame">
-          <img src="{{ url_for('static', filename='assets/male_icon.gif') }}" alt="Avatar · James KB">
+          <img src="{{ url_for('static', filename='assets/male_icon.gif') }}" alt="Avatar - James KB">
         </span>
         <span class="avatar-name">James KB</span>
       </a>
 
-      <a class="avatar-card" href="{{ url_for('contact') }}">
+      <div class="avatar-card avatar-card--static" aria-hidden="true">
         <span class="avatar-frame">
-          <img src="{{ url_for('static', filename='assets/male_icon.gif') }}" alt="Avatar · Tom BM">
+          <img src="{{ url_for('static', filename='assets/male_icon.gif') }}" alt="Avatar - Tom BM">
         </span>
         <span class="avatar-name">Tom BM</span>
-      </a>
+      </div>
 
-      <a class="avatar-card" href="{{ url_for('contact') }}">
+      <div class="avatar-card avatar-card--static" aria-hidden="true">
         <span class="avatar-frame">
-          <img src="{{ url_for('static', filename='assets/female_icon.gif') }}" alt="Avatar · Karen MC">
+          <img src="{{ url_for('static', filename='assets/female_icon.gif') }}" alt="Avatar - Karen MC">
         </span>
         <span class="avatar-name">Karen MC</span>
-      </a>
+      </div>
     </section>
 
     <nav class="footer-links">
