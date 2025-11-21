@@ -329,56 +329,105 @@ function injectElevenLabsWidget() {
     updateDynVars();
 
     event.detail.config.clientTools = {
-      ShowImage: async ({ topic }) => {
-        const prompt = (topic && String(topic).trim()) || DEFAULT_TOPIC;
-        resultsDiv.innerHTML = "<p>Searching...</p>";
-        try {
-          // ---- CHANGED: use SEARCH_URL (was missing / using undefined API_URL)
-          const response = await fetch(SEARCH_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "same-origin",
-            body: JSON.stringify({ prompt, top_k: 3 }),
-          });
-          const data = await response.json();
-
-          if (data.error) {
-            resultsDiv.innerHTML = `<p style="color:red">Error: ${data.error}</p>`;
-            return;
+      /**
+       * ShowImage can take one or many descriptions, for example:
+       *   ShowImage({ queries: ["family on the beach at sunset", "Dubai skyline at night"] })
+       * or just a single string:
+       *   ShowImage({ topic: "family on the beach at sunset" })
+       */
+      ShowImage: async ({ queries, topics, descriptions, topic }) => {
+        const collected = [];
+        const addAll = (xs) => {
+          if (!xs) return;
+          if (Array.isArray(xs)) {
+            xs.forEach((x) => {
+              const t = String(x || "").trim();
+              if (t) collected.push(t);
+            });
+          } else {
+            const raw = String(xs || "").trim();
+            if (!raw) return;
+            // Allow comma/semicolon separated lists
+            const parts = raw.split(/[;|,]/).map((p) => p.trim()).filter(Boolean);
+            if (parts.length) collected.push(...parts);
+            else collected.push(raw);
           }
-          if (!data.results || data.results.length === 0) {
-            resultsDiv.innerHTML = "<p>No similar images found.</p>";
-            return;
-          }
+        };
 
-          resultsDiv.innerHTML = "";
-          data.results.forEach((item) => {
+        addAll(queries);
+        addAll(topics);
+        addAll(descriptions);
+        addAll(topic);
+
+        const prompts = collected.length ? collected : [DEFAULT_TOPIC];
+
+        resultsDiv.innerHTML = "";
+        const shownIds = new Set();
+        const chosenSummaries = [];
+
+        for (const prompt of prompts) {
+          if (!prompt) continue;
+          const status = document.createElement("p");
+          status.textContent = "Searching…";
+          resultsDiv.appendChild(status);
+
+          try {
+            const response = await fetch(SEARCH_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "same-origin",
+              body: JSON.stringify({ prompt, top_k: 2 }),
+            });
+            const data = await response.json();
+
+            if (data.error || !data.results || data.results.length === 0) {
+              status.textContent = "No similar images found.";
+              continue;
+            }
+
+            const [first, second] = data.results;
+            let chosen = null;
+            if (first && !shownIds.has(first.id)) {
+              chosen = first;
+            } else if (second && !shownIds.has(second.id)) {
+              chosen = second;
+            }
+
+            if (!chosen) {
+              status.textContent = "No new image (top results already shown).";
+              continue;
+            }
+
+            shownIds.add(chosen.id);
+            status.remove();
+
             const card = document.createElement("div");
             card.className = "result-item"; // This card needs 'position: relative' in your CSS
 
+            const descEl = document.createElement("div");
+            // descEl.className = "result-caption";
+            // descEl.textContent = chosen.description || "";
+
             const resultImg = document.createElement("img");
             resultImg.className = "result-thumb";
-            resultImg.src = item.path;
-            resultImg.alt = item.id || "result";
+            resultImg.src = chosen.path;
+            resultImg.alt = chosen.id || "result";
             resultImg.loading = "lazy";
             resultImg.decoding = "async";
-            resultImg.width = THUMB_SIZE;   // intrinsic size
+            resultImg.width = THUMB_SIZE;
             resultImg.height = THUMB_SIZE;
 
-            // Score badge (fixed position; won’t change card height)
-            const s = Number(item.score) || 0;
+            const s = Number(chosen.score) || 0;
             const badge = document.createElement("span");
-            badge.textContent = s.toFixed(3);       // e.g., "0.812"
-            badge.title = `Similarity score: ${s}`;     // tooltip for exact value
+            badge.textContent = s.toFixed(3);
+            badge.title = `Similarity score: ${s}`;
             badge.setAttribute("aria-label", `Score ${s.toFixed(3)}`);
 
             const downloadLink = document.createElement("a");
-            downloadLink.href = item.path; 
-            
-            const filename = (item.id || 'image') + '.jpg'; 
-            downloadLink.download = filename; // This attribute triggers the download
-            
-            downloadLink.className = "download-btn"; // For styling
+            downloadLink.href = chosen.path;
+            const filename = (chosen.id || "image") + ".jpg";
+            downloadLink.download = filename;
+            downloadLink.className = "download-btn";
             downloadLink.innerHTML = `
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                 <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M6 17h12M12 5v8m0 0 4-4m-4 4-4-4" />
@@ -387,18 +436,27 @@ function injectElevenLabsWidget() {
             downloadLink.setAttribute("aria-label", "Download image");
 
             card.appendChild(resultImg);
+            card.appendChild(descEl);
             card.appendChild(badge);
-            card.appendChild(downloadLink); // Add the new download button to the card
+            card.appendChild(downloadLink);
             resultsDiv.appendChild(card);
-          });
 
-          // Example return value for clientTools
-          const jsonPath = "test.one";
-          const value = 123;
-          return `${jsonPath}=${value}`;
-        } catch (err) {
-          resultsDiv.innerHTML = `<p style="color:red">Request failed: ${err.message}</p>`;
+            chosenSummaries.push({
+              id: chosen.id,
+              path: chosen.path,
+              score: chosen.score,
+              description: chosen.description || "",
+            });
+          } catch (err) {
+            status.textContent = `Request failed: ${err.message}`;
+          }
         }
+
+        // Return descriptions of the most relevant images back to the agent
+        return JSON.stringify({
+          results: chosenSummaries,
+          descriptions: chosenSummaries.map((r) => r.description),
+        });
       },
     };
 

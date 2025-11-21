@@ -10,6 +10,14 @@
       max-width: 800px; margin: 24px auto;
     }
     #fileInput { display: block; margin: 20px auto; font-size: 1rem; }
+    .file-list { text-align: left; margin: 12px 0 18px; display: grid; gap: 12px; }
+    .file-row { border: 1px solid #e5e5e5; border-radius: 8px; padding: 10px; background: #fafafa; }
+    .file-name { font-weight: 600; margin-bottom: 6px; }
+    .file-desc {
+      width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px;
+      resize: vertical; min-height: 48px; font-size: 0.95rem; font-family: inherit;
+    }
+    .helper { color: #444; margin: 8px 0; }
     #uploadBtn {
       background-color: #0078d7; color: #fff; border: none;
       padding: 10px 25px; border-radius: 8px; cursor: pointer; font-size: 1rem;
@@ -38,12 +46,15 @@
 
   <div id="uploadBox">
     <input type="file" id="fileInput" accept="image/*" multiple>
+    <div class="helper">After selecting files, add an optional description for each (names only, no preview).</div>
+    <div id="fileList" class="file-list"></div>
     <button id="uploadBtn" type="button">Upload &amp; Embed</button>
     <div id="log"></div>
   </div>
 
   <nav class="footer-links">
     <a href="{{ url_for('james_kb') }}">James KB</a>
+    <a href="{{ url_for('manage_images') }}">Manage images</a>
   </nav>
 {% endblock %}
 
@@ -54,7 +65,46 @@
 
   const fileInput = document.getElementById("fileInput");
   const uploadBtn = document.getElementById("uploadBtn");
+  const fileListDiv = document.getElementById("fileList");
   const logDiv = document.getElementById("log");
+
+  function renderFileList() {
+    fileListDiv.innerHTML = "";
+    const files = Array.from(fileInput.files || []);
+    if (!files.length) {
+      const p = document.createElement("p");
+      p.className = "helper";
+      p.textContent = "No files selected.";
+      fileListDiv.appendChild(p);
+      return;
+    }
+    files.forEach((file, idx) => {
+      const row = document.createElement("div");
+      row.className = "file-row";
+
+      const name = document.createElement("div");
+      name.className = "file-name";
+      name.textContent = `${idx + 1}. ${file.name}`;
+
+      const desc = document.createElement("textarea");
+      desc.className = "file-desc";
+      desc.placeholder = `Description for ${file.name} (optional)`;
+      desc.rows = 2;
+      desc.dataset.filename = file.name;
+
+      row.appendChild(name);
+      row.appendChild(desc);
+      fileListDiv.appendChild(row);
+    });
+  }
+
+  function collectDescriptions() {
+    const map = new Map();
+    fileListDiv.querySelectorAll(".file-desc").forEach((el) => {
+      map.set(el.dataset.filename, (el.value || "").trim());
+    });
+    return map;
+  }
 
   function makeLogLine(fileName, text, className = "pending") {
     const line = document.createElement("div");
@@ -67,9 +117,12 @@
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-  async function uploadOne(file, lineEl, { timeoutMs = 60000, maxRetries = 3 }) {
+  async function uploadOne(file, lineEl, { timeoutMs = 60000, maxRetries = 3, description }) {
     const formData = new FormData();
     formData.append("image", file, file.name);
+    if (description) {
+      formData.append("description", description);
+    }
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       const controller = new AbortController();
@@ -99,7 +152,8 @@
           lineEl.textContent = `❌ ${file.name}: ${data.error}`;
         } else if (data) {
           lineEl.className = "success";
-          lineEl.innerHTML = `✅ ${file.name} uploaded!<br>ID: <code>${data.id ?? "n/a"}</code><br>Saved path: <code>${data.path ?? "n/a"}</code>`;
+          const descLine = data.description ? `<br>Description: <code>${data.description}</code>` : "";
+          lineEl.innerHTML = `✅ ${file.name} uploaded!<br>ID: <code>${data.id ?? "n/a"}</code><br>Saved path: <code>${data.path ?? "n/a"}</code>${descLine}`;
         } else {
           lineEl.className = "success";
           lineEl.textContent = `✅ ${file.name} uploaded (no JSON body).`;
@@ -123,6 +177,7 @@
   }
 
   async function uploadMany(files, concurrency = 1) {
+    const descriptionMap = collectDescriptions();
     const queue = Array.from(files).map(file => {
       const line = makeLogLine(file.name, `Uploading ${file.name}...`);
       return { file, line };
@@ -134,7 +189,8 @@
         const i = index++;
         if (i >= queue.length) break;
         const current = queue[i];
-        await uploadOne(current.file, current.line, { timeoutMs: 120000, maxRetries: 3 });
+        const description = descriptionMap.get(current.file.name) || "";
+        await uploadOne(current.file, current.line, { timeoutMs: 120000, maxRetries: 3, description });
       }
     });
 
@@ -158,5 +214,8 @@
       uploadBtn.textContent = "Upload & Embed";
     }
   });
+
+  fileInput.addEventListener("change", renderFileList);
+  renderFileList();
 </script>
 {% endblock %}

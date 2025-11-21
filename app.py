@@ -12,12 +12,12 @@ from backend.embedding import (
     create_index,
     embed_text,
     ingest_image_file,
-    generate_short_description,
 )
 from backend.faiss_index import DEFAULT_IMAGES_DIR
 from backend.people_db import init_db, get_person, get_person_by_name, create_or_update_person
 
 import random
+import numpy as np
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app, origins=[
@@ -28,6 +28,7 @@ CORS(app, origins=[
 ])
 
 MINIMUM_SCORE = 0.25
+HIGH_SCORE_THRESHOLD = 0.6  # used to adapt minimum score per-query
 
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024  # 20MB upload cap
 os.makedirs(DEFAULT_IMAGES_DIR, exist_ok=True)
@@ -54,6 +55,16 @@ def file_path_to_url(p: str) -> str:
     except ValueError:
         rel = os.path.basename(p)
     return "/data/" + quote(rel.replace(os.sep, "/"))
+
+def dynamic_minimum_score(scores):
+    if not scores:
+        return MINIMUM_SCORE
+    top = max(scores)
+    factor = 0.6 if top >= HIGH_SCORE_THRESHOLD else 0.7
+    return max(MINIMUM_SCORE, top * factor)
+
+def combine_score(faiss_score: float, desc_score: float, weight_img: float = 0.8, weight_desc: float = 0.2) -> float:
+    return (faiss_score * weight_img) + (desc_score * weight_desc)
 
 @app.route("/data/<path:rel>")
 def serve_data(rel: str):
@@ -98,6 +109,10 @@ def add_user():
 def upload():
     return render_template("upload.html")
 
+@app.route("/manage-images")
+def manage_images():
+    return render_template("manage_images.html")
+
 
 @app.route("/search", methods=["POST"])
 def search():
@@ -119,17 +134,43 @@ def search():
         q = embed_text(prompt)
         results = index.search(q, top_k=top_k)
         out = []
-        maximum_score = {"id": 0, "path": "", "score": -9999}
+        maximum_score = None
 
-        for ext_id, path, score in results:
+        # normalize query for text-to-text scoring
+        qnorm = q / (float((q**2).sum()) ** 0.5 + 1e-12)
+
+        for ext_id, path, score, caption, user_caption, is_active in results:
             web_url = file_path_to_url(path)  # <-- convert to /data/...
-            if score >= MINIMUM_SCORE:
-                out.append({"id": ext_id, "path": web_url, "score": score})
-            if score > maximum_score["score"]:
-                maximum_score = {"id": ext_id, "path": web_url, "score": score}
+            if not is_active:
+                continue
+            description = user_caption or caption
+
+            # description similarity (text-to-text)
+            desc_score = 0.0
+            desc_weight = 0.2  # auto/default
+            if user_caption:
+                desc_weight = 0.35
+            if description:
+                dvec = embed_text(description)
+                dvec /= (float((dvec**2).sum()) ** 0.5 + 1e-12)
+                desc_score = float(np.dot(qnorm, dvec))
+
+            combined_score = combine_score(score, desc_score, weight_img=0.8, weight_desc=desc_weight)
+
+            entry = {"id": ext_id, "path": web_url, "score": combined_score, "description": description}
+            out.append(entry)
+            if (maximum_score is None) or combined_score > maximum_score["score"]:
+                maximum_score = entry
+
+        # apply adaptive minimum
+        min_score = dynamic_minimum_score([r["score"] for r in out])
+        out = [r for r in out if r["score"] >= min_score]
 
         if not out:
-            out.append(maximum_score)
+            if maximum_score:
+                out.append(maximum_score)
+            else:
+                return jsonify({"results": []})
 
         return jsonify({"results": out})
     except Exception as e:
@@ -140,8 +181,9 @@ def search():
 def ingest_image():
     """
     Multipart form-data:
-      - image: file
-    Returns: { "id": ..., "path": ... }
+      - image: file (required)
+      - description: optional custom caption to improve recall
+    Returns: { "id": ..., "path": ..., "description": ... }
     """
     if "image" not in request.files:
         return jsonify({"error": "image file is required (multipart/form-data)"}), 400
@@ -151,12 +193,20 @@ def ingest_image():
         return jsonify({"error": "empty filename"}), 400
 
     try:
-        ext_id, path = ingest_image_file(
+        user_description = (request.form.get("description") or request.form.get("caption") or "").strip()
+
+        ext_id, path, stored_description = ingest_image_file(
             index=index,
             image_file=file.stream,
             filename_hint=secure_filename(file.filename),
+            user_description=user_description,
         )
-        return jsonify({"id": ext_id, "path": path})
+        return jsonify({
+            "id": ext_id,
+            "path": path,
+            "description": stored_description,
+            "description_source": "user" if user_description else "auto",
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -165,32 +215,74 @@ def check_image():
     """
     Body: { "query": "image of hong kong" }
     Returns:
-      { "description": "night cityscape with skyscrapers and harbor" }  if top result score >= MINIMUM_SCORE
-      { "description": null }                                           otherwise
+      {
+        "description": "<best description or null>",
+        "descriptions": ["<desc1>", "<desc2>", ...]
+      }
+      Descriptions correspond to the most relevant images for the query,
+      sorted by combined image+text similarity and filtered by dynamic threshold.
     """
     data = request.get_json(force=True, silent=True) or {}
     query = (data.get("query") or "").strip()
+    top_k = int(data.get("top_k", 5))
     if not query:
         return jsonify({"error": "query is required"}), 400
+    if top_k <= 0:
+        top_k = 5
 
     try:
         # 1) Embed the query and search your image index
         qvec = embed_text(query)
-        results = index.search(qvec, top_k=1)
+        results = index.search(qvec, top_k=top_k)
 
         if not results:
-            return jsonify({"description": None})
+            return jsonify({"description": None, "descriptions": []})
 
-        ext_id, path, score = results[0]
+        matched = []
+        best_any = None
 
-        # 2) Threshold check
-        # if float(score) < MINIMUM_SCORE:
-        #     return jsonify({"description": None})
+        # normalized query for text-to-text scoring
+        qnorm = qvec / (float((qvec**2).sum()) ** 0.5 + 1e-12)
 
-        # 3) "description"
-        desc, _ = generate_short_description(path)
+        for ext_id, path, score, caption, user_caption, is_active in results:
+            if not is_active:
+                continue
+            web_url = file_path_to_url(path)
+            desc = user_caption or caption
 
-        return jsonify({"description": desc})
+            desc_score = 0.0
+            desc_weight = 0.2
+            if user_caption:
+                desc_weight = 0.35
+            if desc:
+                dvec = embed_text(desc)
+                dvec /= (float((dvec**2).sum()) ** 0.5 + 1e-12)
+                desc_score = float(np.dot(qnorm, dvec))
+
+            combined_score = combine_score(score, desc_score, weight_img=0.8, weight_desc=desc_weight)
+            entry = {
+                "id": ext_id,
+                "path": web_url,
+                "score": float(combined_score),
+                "description": desc,
+            }
+            matched.append(entry)
+            if (best_any is None) or combined_score > best_any["score"]:
+                best_any = entry
+
+        if not matched and best_any:
+            matched.append(best_any)
+
+        # apply adaptive min score
+        min_score = dynamic_minimum_score([m["score"] for m in matched])
+        filtered = [m for m in matched if m["score"] >= min_score]
+
+        descriptions = [m["description"] for m in filtered if m.get("description")]
+        top_description = descriptions[0] if descriptions else None
+        return jsonify({
+            "description": top_description,
+            "descriptions": descriptions,
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -292,6 +384,68 @@ def get_topic_when_silence():
     ]
     try:
         return jsonify({"topic": random.choice(SILENCE_TOPICS)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/images", methods=["GET"])
+def list_images():
+    try:
+        include_inactive = bool(int(request.args.get("include_inactive", "0")))
+        rows = index.list_all(include_inactive=include_inactive)
+        out = []
+        for ext_id, path, caption, user_caption, is_active in rows:
+            out.append({
+                "id": ext_id,
+                "path": file_path_to_url(path),
+                "caption": caption,
+                "user_caption": user_caption,
+                "description": user_caption or caption,
+                "is_active": bool(is_active),
+            })
+        return jsonify({"images": out})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/images/<ext_id>", methods=["PATCH", "DELETE"])
+def update_image(ext_id):
+    try:
+        if request.method == "DELETE":
+            index.set_active(ext_id, 0)
+            # best-effort delete file
+            row = index.get_by_ext_id(ext_id)
+            if row and row[1]:
+                try:
+                    os.remove(row[1])
+                except Exception:
+                    pass
+            return jsonify({"status": "deleted"})
+
+        data = request.get_json(force=True, silent=True) or {}
+        new_desc = (data.get("description") or "").strip()
+        index.set_user_caption(ext_id, new_desc or None)
+        return jsonify({"status": "updated", "id": ext_id, "description": new_desc or None})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/descriptions", methods=["GET"])
+def list_descriptions():
+    """
+    GET /descriptions
+    Returns all image IDs, paths and their effective description (user_caption or caption).
+    Optional query param: include_inactive=1 to also include inactive images.
+    """
+    try:
+        include_inactive = bool(int(request.args.get("include_inactive", "0")))
+        rows = index.list_all(include_inactive=include_inactive)
+        out = []
+        for ext_id, path, caption, user_caption, is_active in rows:
+            out.append({
+                # "id": ext_id,
+                # "path": file_path_to_url(path),
+                "description": user_caption or caption,
+                # "is_active": bool(is_active),
+            })
+        return jsonify({"descriptions": out})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

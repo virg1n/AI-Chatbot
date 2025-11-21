@@ -1,6 +1,6 @@
 import os
 import uuid
-from typing import List, Tuple, Iterable
+from typing import List, Tuple, Iterable, Optional
 import torch
 from PIL import Image
 import numpy as np
@@ -26,6 +26,32 @@ _VITGPT2_EXTRACTOR = None
 _VITGPT2_TOKENIZER = None
 
 
+def _blend_image_text_vectors(
+    image_vec: np.ndarray,
+    text_parts: List[Tuple[str, float]],
+    image_weight: float = 0.8,
+) -> np.ndarray:
+    """
+    Blend image and text embeddings with specified weights.
+    """
+    vecs = [image_vec]
+    weights = [max(0.0, image_weight)]
+
+    parts = [(txt, w) for (txt, w) in (text_parts or []) if txt and w > 0]
+    if parts:
+        total = sum(w for _, w in parts)
+        for prompt, w in parts:
+            weight = w / total * (1.0 - image_weight)
+            vecs.append(embed_text(prompt).astype(np.float32))
+            weights.append(weight)
+
+    weights_arr = np.array(weights, dtype=np.float32)
+    weights_arr /= weights_arr.sum() if weights_arr.sum() else 1.0
+    stacked = np.stack(vecs, axis=0)
+    blended_vec = (stacked * weights_arr[:, None]).sum(axis=0, keepdims=True).astype(np.float32)
+    return blended_vec
+
+
 def get_model():
     global _model, _preprocess, _tokenizer, _embed_dim
     if _model is None:
@@ -47,8 +73,6 @@ def get_model():
 def _load_vitgpt2_captioner():
     global _VITGPT2_MODEL, _VITGPT2_EXTRACTOR, _VITGPT2_TOKENIZER
     if _VITGPT2_MODEL is None:
-        
-
         model_name = "nlpconnect/vit-gpt2-image-captioning"
         _VITGPT2_MODEL = VisionEncoderDecoderModel.from_pretrained(model_name).to(DEVICE)
         _VITGPT2_MODEL.eval()
@@ -56,7 +80,7 @@ def _load_vitgpt2_captioner():
         _VITGPT2_TOKENIZER = AutoTokenizer.from_pretrained(model_name)
     return _VITGPT2_MODEL, _VITGPT2_EXTRACTOR, _VITGPT2_TOKENIZER
 
-def _shorten_caption(text: str, max_words: int = 12) -> str:
+def _shorten_caption(text: str, max_words: int = 60) -> str:
     words = text.strip().rstrip(".").split()
     return " ".join(words[:max_words])
 
@@ -87,11 +111,12 @@ def ingest_image_file(
     index: ImageVectorIndex,
     image_file,
     filename_hint: str = None,
-) -> Tuple[str, str]:
+    user_description: Optional[str] = None,
+) -> Tuple[str, str, Optional[str]]:
     """
     Save an uploaded image file to disk, embed it, and add to index.
     image_file: a file-like object (e.g., from Flask's request.files['image'])
-    Returns (ext_id, saved_path).
+    Returns (ext_id, saved_path, caption).
     """
     os.makedirs(DEFAULT_IMAGES_DIR, exist_ok=True)
     ext = os.path.splitext(filename_hint or "image.jpg")[1] or ".jpg"
@@ -107,11 +132,36 @@ def ingest_image_file(
 
     # Embed
     img = Image.open(saved_path).convert("RGB")
-    vec = embed_image_pil(img).astype(np.float32)[None, :]
+    image_vec = embed_image_pil(img).astype(np.float32)
+
+    # Generate an automatic caption once per ingest
+    auto_caption, _ = generate_short_description(saved_path, max_new_tokens=80, max_words=60)
+
+    user_caption = (user_description or "").strip() or None
+
+    # Blend image + text
+    text_parts: List[Tuple[str, float]] = []
+    # auto caption weight 0.2, user caption weight 0.35 (later normalized to 1 - image_weight)
+    if auto_caption:
+        text_parts.append((auto_caption, 0.20))
+    if user_caption:
+        text_parts.append((user_caption, 0.35))
+    blended_vec = _blend_image_text_vectors(
+        image_vec,
+        text_parts,
+        image_weight=0.8,
+    )
 
     # Add to index
-    index.add([ext_id], [saved_path], vec)
-    return ext_id, saved_path
+    index.add(
+        [ext_id],
+        [saved_path],
+        blended_vec,
+        captions=[auto_caption],
+        user_captions=[user_caption],
+        actives=[1],
+    )
+    return ext_id, saved_path, user_caption or auto_caption
 
 
 def build_index_from_folder(
@@ -216,14 +266,14 @@ def create_index(dim_override: int = None) -> ImageVectorIndex:
     return ImageVectorIndex(dim=dim)
 
 @torch.no_grad()
-def generate_short_description(image_path: str, max_new_tokens: int = 20) -> Tuple[str, float]:
+def generate_short_description(image_path: str, max_new_tokens: int = 80, max_words: int = 60) -> Tuple[str, float]:
     """
-    Generate a short, plain-English description for an image.
+    Generate a plain-English description for an image using the ViT-GPT2 captioning model.
 
     Returns:
         (caption, quality_score)
-        - caption: short string
-        - quality_score: a rough confidence proxy in [0..1] (not used by the endpoint)
+        - caption: string
+        - quality_score: a rough confidence proxy in [0..1] (placeholder 1.0)
     """
     model, extractor, tokenizer = _load_vitgpt2_captioner()
 
@@ -233,20 +283,14 @@ def generate_short_description(image_path: str, max_new_tokens: int = 20) -> Tup
     outputs = model.generate(
         pixel_values,
         max_new_tokens=max_new_tokens,
-        num_beams=3,
+        num_beams=4,
         do_sample=False,
         early_stopping=True,
         no_repeat_ngram_size=2,
+        repetition_penalty=1.05,
     )
     caption = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    caption = _shorten_caption(caption, max_words=12)
+    caption = _shorten_caption(caption, max_words=max_words)
 
-    # Produce a light-weight "quality" proxy from logit scores if available (fallback to 1.0)
-    try:
-        # Greedy/beam search doesn't expose probs directly; this is a simple heuristic.
-        # You can wire logits processing for a better score if needed.
-        quality = 1.0
-    except Exception:
-        quality = 1.0
-
+    quality = 1.0
     return caption, float(quality)

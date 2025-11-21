@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}Manage Images{% endblock %}
+{% block bodyclass %}manage-images{% endblock %}
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/demo_cosmo.css') }}">
+  <style>
+    body.manage-images { background: #0b1220; color: #f5f7fb; }
+    .wrap { max-width: 1100px; margin: 30px auto; padding: 20px; background: #10192b; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.25); }
+    h1 { margin-bottom: 12px; }
+    .grid { display: grid; gap: 12px; }
+    .card { background: #12233a; border: 1px solid #1f3250; border-radius: 10px; padding: 12px; display: grid; grid-template-columns: 1fr; gap: 8px; }
+    .row { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+    .path { font-size: 0.9rem; color: #bcd; word-break: break-all; }
+    .label { font-size: 0.9rem; color: #9fb0c6; }
+    .desc { width: 100%; min-height: 70px; border-radius: 8px; border: 1px solid #274068; background: #0c1525; color: #f5f7fb; padding: 8px 10px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+    button.save { background: #2eb67d; color: #0c1525; }
+    button.delete { background: #c23b3b; color: #fff; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .pill { font-size: 0.8rem; padding: 3px 8px; border-radius: 999px; background: #20314a; color: #c9e4ff; }
+    .status.inactive { background: #5c1f2f; color: #ffc7d1; }
+    .status.active { background: #1f3b2d; color: #bff0c9; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .message { margin-top: 10px; color: #9fd; font-size: 0.95rem; }
+    .thumb-wrap { display: flex; gap: 12px; align-items: center; }
+    .thumb { width: 140px; height: 140px; object-fit: cover; border-radius: 10px; border: 1px solid #1f3250; background: #0c1525; }
+    .thumb-caption { flex: 1; }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <div class="wrap">
+    <div class="header">
+      <h1>Manage Images</h1>
+      <a href="{{ url_for('home') }}" class="pill">Back to search</a>
+    </div>
+    <p class="label">View all stored images, edit their descriptions, or delete entries.</p>
+    <div id="message" class="message"></div>
+    <div id="list" class="grid"></div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const listEl = document.getElementById("list");
+  const messageEl = document.getElementById("message");
+
+  function setMessage(text, color="#9fd") {
+    messageEl.textContent = text || "";
+    messageEl.style.color = color;
+  }
+
+  async function fetchImages() {
+    setMessage("Loading images...");
+    const res = await fetch("/api/images");
+    const data = await res.json();
+    if (data.error) {
+      setMessage(`Error: ${data.error}`, "#f99");
+      return;
+    }
+    renderList(data.images || []);
+    setMessage(`Loaded ${data.images.length} images.`);
+  }
+
+  function renderList(items) {
+    listEl.innerHTML = "";
+    if (!items.length) {
+      const p = document.createElement("p");
+      p.textContent = "No images found.";
+      listEl.appendChild(p);
+      return;
+    }
+    items.forEach((item) => {
+      const card = document.createElement("div");
+      card.className = "card";
+
+      const header = document.createElement("div");
+      header.className = "row";
+      header.innerHTML = `<span class="label">ID: ${item.id}</span>
+        <span class="pill status ${item.is_active ? "active" : "inactive"}">${item.is_active ? "active" : "inactive"}</span>`;
+
+      const thumbWrap = document.createElement("div");
+      thumbWrap.className = "thumb-wrap";
+
+      const img = document.createElement("img");
+      img.className = "thumb";
+      img.src = item.path;
+      img.alt = item.id;
+      img.loading = "lazy";
+      img.decoding = "async";
+
+      const thumbInfo = document.createElement("div");
+      thumbInfo.className = "thumb-caption";
+
+      const path = document.createElement("div");
+      path.className = "path";
+      path.textContent = item.path;
+
+      const descLabel = document.createElement("div");
+      descLabel.className = "label";
+      descLabel.textContent = "Description (user overrides auto):";
+
+      const textarea = document.createElement("textarea");
+      textarea.className = "desc";
+      textarea.value = item.description || "";
+      textarea.placeholder = "Enter a description to override the auto-caption";
+
+      const actions = document.createElement("div");
+      actions.className = "actions";
+
+      const saveBtn = document.createElement("button");
+      saveBtn.className = "save";
+      saveBtn.textContent = "Save";
+      saveBtn.onclick = async () => {
+        saveBtn.disabled = true;
+        await saveDescription(item.id, textarea.value);
+        await fetchImages();
+      };
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "delete";
+      deleteBtn.textContent = "Delete";
+      deleteBtn.onclick = async () => {
+        if (!confirm("Delete this image? This will deactivate it from search.")) return;
+        deleteBtn.disabled = true;
+        await deleteImage(item.id);
+        await fetchImages();
+      };
+
+      actions.appendChild(saveBtn);
+      actions.appendChild(deleteBtn);
+
+      thumbInfo.appendChild(path);
+      thumbInfo.appendChild(descLabel);
+      thumbInfo.appendChild(textarea);
+      thumbWrap.appendChild(img);
+      thumbWrap.appendChild(thumbInfo);
+
+      card.appendChild(header);
+      card.appendChild(thumbWrap);
+      card.appendChild(actions);
+      listEl.appendChild(card);
+    });
+  }
+
+  async function saveDescription(id, description) {
+    const res = await fetch(`/api/images/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description }),
+    });
+    const data = await res.json();
+    if (data.error) setMessage(`Error: ${data.error}`, "#f99");
+    else setMessage("Saved.");
+  }
+
+  async function deleteImage(id) {
+    const res = await fetch(`/api/images/${id}`, { method: "DELETE" });
+    const data = await res.json();
+    if (data.error) setMessage(`Error: ${data.error}`, "#f99");
+    else setMessage("Deleted.");
+  }
+
+  fetchImages();
+</script>
+{% endblock %}
